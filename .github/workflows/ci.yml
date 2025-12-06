@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SWIFT_VERSION: '6.2'
+
+jobs:
+  # MARK: - Lint (SwiftFormat)
+
+  lint:
+    name: Lint
+    runs-on: macos-26
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+
+      - name: SwiftFormat Check
+        run: swiftformat Sources Tests --lint
+
+  # MARK: - Build & Unit Tests (macOS with Xcode)
+
+  build-macos:
+    name: Build & Test (macOS 26)
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ github.repository }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ github.repository }}-
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Unit Tests
+        run: swift test --skip PymodbusIntegrationTests --parallel
+
+  # MARK: - Build & Unit Tests (Linux)
+
+  build-linux:
+    name: Build & Test (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ github.repository }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ github.repository }}-
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Unit Tests
+        run: swift test --skip PymodbusIntegrationTests --parallel
+
+  # MARK: - Integration Tests (pymodbus reference server)
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build-linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ github.repository }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ github.repository }}-
+
+      - name: Start reference servers
+        run: docker compose up -d --wait
+
+      - name: Integration Tests
+        run: swift test --filter PymodbusIntegrationTests
+
+      - name: Stop reference servers
+        if: always()
+        run: docker compose down

@@ -1,0 +1,26 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Python (Docker reference servers)
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Claude Code
+.claude/
+CLAUDE.md

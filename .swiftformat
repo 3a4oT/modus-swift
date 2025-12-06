@@ -1,0 +1,94 @@
+# SwiftFormat Configuration
+# Based on Airbnb Swift Style Guide with adjustments for this project
+# https://github.com/airbnb/swift
+
+# Swift version
+--swiftversion 6.2
+
+# Paths to exclude
+--exclude .build,Pods,Carthage,DerivedData
+
+# MARK: - Format Options
+
+# Indentation: 4 spaces (project preference over Airbnb's 2)
+--indent 4
+
+# Line length
+--maxwidth 120
+
+# Wrap arguments
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--wrapconditions before-first
+--wrapreturntype preserve
+--wrapeffects preserve
+--wraptypealiases before-first
+
+# Closing paren position
+--closingparen balanced
+--callsiteparen balanced
+
+# Self
+--self remove
+--selfrequired
+
+# Imports
+--importgrouping alpha
+
+# Type organization
+--organizetypes class,enum,struct,extension,protocol
+--extensionacl on-declarations
+
+# Braces
+--allman false
+
+# Else position
+--elseposition same-line
+--guardelse same-line
+
+# Trailing comma
+--commas always
+
+# Semicolons
+--semicolons never
+
+# Redundancies
+--redundanttype inferred
+
+# Void
+--voidtype void
+
+# Marks
+--markextensions always
+--markcategories true
+
+# Empty braces
+--emptybraces no-space
+
+# Ranges
+--ranges spaced
+
+# Header comments
+--header strip
+
+# MARK: - Enabled Rules
+
+--enable blankLineAfterImports
+--enable blankLinesBetweenImports
+--enable blockComments
+--enable docComments
+--enable isEmpty
+--enable markTypes
+--enable organizeDeclarations
+--enable sortDeclarations
+--enable wrapConditionalBodies
+--enable wrapEnumCases
+--enable wrapMultilineConditionalAssignment
+--enable wrapSwitchCases
+
+# MARK: - Disabled Rules
+
+--disable acronyms
+--disable blankLineAfterSwitchCase
+--disable sortSwitchCases

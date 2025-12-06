@@ -1,0 +1,49 @@
+# Docker Compose for ModbusKit development and testing
+#
+# Services:
+#   pymodbus-server     - Reference Modbus TCP server for validation tests
+#   pymodbus-tls-server - Reference Modbus/TCP Security server for TLS tests
+#
+# Usage:
+#   docker compose up -d pymodbus-server        # Start TCP server only
+#   docker compose up -d pymodbus-tls-server    # Start TLS server only
+#   docker compose up -d                        # Start all servers
+#   swift test --filter PymodbusValidation      # Run TCP validation tests
+#   swift test --filter PymodbusTLSValidation   # Run TLS validation tests
+#   docker compose down                         # Stop all servers
+#
+# CI Usage:
+#   docker compose up -d --wait
+#   swift test
+#   docker compose down
+
+services:
+  pymodbus-server:
+    build:
+      context: docker/pymodbus-server
+      dockerfile: Dockerfile
+    container_name: modbus-reference-server
+    ports:
+      - "5020:5020"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 5020)); s.close()"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  pymodbus-tls-server:
+    build:
+      context: docker/pymodbus-tls-server
+      dockerfile: Dockerfile
+    container_name: modbus-tls-reference-server
+    ports:
+      - "5021:5021"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket, ssl; ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE; s = ctx.wrap_socket(socket.socket(), server_hostname='localhost'); s.settimeout(2); s.connect(('127.0.0.1', 5021)); s.close()"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
