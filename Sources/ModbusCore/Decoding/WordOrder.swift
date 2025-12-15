@@ -125,6 +125,74 @@ public func decodeFloat32(
     Float(bitPattern: decodeUInt32(registers, order: order))
 }
 
+// MARK: - 64-bit Decoding
+
+/// Decodes a UInt64 from four 16-bit registers using specified word order.
+///
+/// For alarm/fault bitmasks and other 64-bit values spanning 4 registers.
+///
+/// - Parameters:
+///   - registers: Tuple of four register values
+///   - order: Word order configuration
+/// - Returns: Decoded 64-bit unsigned value
+@inlinable
+public func decodeUInt64(
+    _ registers: (UInt16, UInt16, UInt16, UInt16),
+    order: WordOrder,
+) -> UInt64 {
+    let (r0, r1, r2, r3) = registers
+
+    switch order {
+    case .abcd:
+        // Big Endian: r0 is MSW, r3 is LSW
+        return (UInt64(r0) << 48) | (UInt64(r1) << 32) | (UInt64(r2) << 16) | UInt64(r3)
+
+    case .badc:
+        // Swap bytes within each register
+        return (UInt64(r0.byteSwapped) << 48) | (UInt64(r1.byteSwapped) << 32)
+            | (UInt64(r2.byteSwapped) << 16) | UInt64(r3.byteSwapped)
+
+    case .cdab:
+        // Little Endian words: r0 is LSW, r3 is MSW
+        return (UInt64(r3) << 48) | (UInt64(r2) << 32) | (UInt64(r1) << 16) | UInt64(r0)
+
+    case .dcba:
+        // Full Little Endian
+        return (UInt64(r3.byteSwapped) << 48) | (UInt64(r2.byteSwapped) << 32)
+            | (UInt64(r1.byteSwapped) << 16) | UInt64(r0.byteSwapped)
+    }
+}
+
+/// Decodes an Int64 from four 16-bit registers using specified word order.
+///
+/// - Parameters:
+///   - registers: Tuple of four register values
+///   - order: Word order configuration
+/// - Returns: Decoded 64-bit signed value
+@inlinable
+public func decodeInt64(
+    _ registers: (UInt16, UInt16, UInt16, UInt16),
+    order: WordOrder,
+) -> Int64 {
+    Int64(bitPattern: decodeUInt64(registers, order: order))
+}
+
+/// Decodes a Float64 (Double) from four 16-bit registers using specified word order.
+///
+/// Uses IEEE 754 double-precision floating-point format.
+///
+/// - Parameters:
+///   - registers: Tuple of four register values
+///   - order: Word order configuration
+/// - Returns: Decoded 64-bit float value
+@inlinable
+public func decodeFloat64(
+    _ registers: (UInt16, UInt16, UInt16, UInt16),
+    order: WordOrder,
+) -> Double {
+    Double(bitPattern: decodeUInt64(registers, order: order))
+}
+
 // MARK: - ReadRegistersResponse Extension
 
 extension ReadRegistersResponse {
@@ -165,5 +233,47 @@ extension ReadRegistersResponse {
             return nil
         }
         return Float(bitPattern: bits)
+    }
+
+    /// Decodes a UInt64 from four consecutive registers using specified word order.
+    ///
+    /// - Parameters:
+    ///   - index: Starting register index (0-based)
+    ///   - order: Word order configuration
+    /// - Returns: Decoded value, or nil if not enough registers
+    public func uint64Value(at index: Int, order: WordOrder) -> UInt64? {
+        guard index >= 0, index + 3 < registers.count else {
+            return nil
+        }
+        return decodeUInt64(
+            (registers[index], registers[index + 1], registers[index + 2], registers[index + 3]),
+            order: order,
+        )
+    }
+
+    /// Decodes an Int64 from four consecutive registers using specified word order.
+    ///
+    /// - Parameters:
+    ///   - index: Starting register index (0-based)
+    ///   - order: Word order configuration
+    /// - Returns: Decoded value, or nil if not enough registers
+    public func int64Value(at index: Int, order: WordOrder) -> Int64? {
+        guard let unsigned = uint64Value(at: index, order: order) else {
+            return nil
+        }
+        return Int64(bitPattern: unsigned)
+    }
+
+    /// Decodes a Float64 (Double) from four consecutive registers using specified word order.
+    ///
+    /// - Parameters:
+    ///   - index: Starting register index (0-based)
+    ///   - order: Word order configuration
+    /// - Returns: Decoded float value, or nil if not enough registers
+    public func float64Value(at index: Int, order: WordOrder) -> Double? {
+        guard let bits = uint64Value(at: index, order: order) else {
+            return nil
+        }
+        return Double(bitPattern: bits)
     }
 }

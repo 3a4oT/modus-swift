@@ -232,4 +232,165 @@ struct WordOrderTests {
         let result = decodeUInt32((0x5678, 0x1234), order: .cdab)
         #expect(result == 0x1234_5678)
     }
+
+    // MARK: - UInt64 Decoding Tests
+
+    @Test("64-bit AB_CD: Big Endian")
+    func decode64ABCD() {
+        // Value: 0x123456789ABCDEF0
+        // Registers: [0x1234, 0x5678, 0x9ABC, 0xDEF0]
+        let result = decodeUInt64((0x1234, 0x5678, 0x9ABC, 0xDEF0), order: .abcd)
+        #expect(result == 0x1234_5678_9ABC_DEF0)
+    }
+
+    @Test("64-bit CD_AB: Little Endian words")
+    func decode64CDAB() {
+        // Value: 0x123456789ABCDEF0
+        // CD_AB: r0 is LSW, r3 is MSW
+        // Registers: [0xDEF0, 0x9ABC, 0x5678, 0x1234]
+        let result = decodeUInt64((0xDEF0, 0x9ABC, 0x5678, 0x1234), order: .cdab)
+        #expect(result == 0x1234_5678_9ABC_DEF0)
+    }
+
+    @Test("64-bit decode zero")
+    func decode64Zero() {
+        #expect(decodeUInt64((0, 0, 0, 0), order: .abcd) == 0)
+        #expect(decodeUInt64((0, 0, 0, 0), order: .cdab) == 0)
+    }
+
+    @Test("64-bit decode max")
+    func decode64Max() {
+        #expect(decodeUInt64((0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF), order: .abcd) == UInt64.max)
+    }
+
+    @Test("Int64 negative value")
+    func decode64Negative() {
+        // -1 = 0xFFFFFFFFFFFFFFFF
+        let result = decodeInt64((0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF), order: .abcd)
+        #expect(result == -1)
+    }
+
+    @Test("Float64 decode 1.0")
+    func decode64Float1() {
+        // IEEE 754 double: 1.0 = 0x3FF0000000000000
+        // AB_CD: [0x3FF0, 0x0000, 0x0000, 0x0000]
+        let result = decodeFloat64((0x3FF0, 0x0000, 0x0000, 0x0000), order: .abcd)
+        #expect(result == 1.0)
+    }
+
+    // MARK: - Response 64-bit Extension Tests
+
+    @Test("Response uint64Value")
+    func responseUInt64() throws {
+        let pdu: [UInt8] = [
+            0x03,
+            0x08, // 4 registers
+            0x12, 0x34,
+            0x56, 0x78,
+            0x9A, 0xBC,
+            0xDE, 0xF0,
+        ]
+
+        let response = try parseReadRegistersPDU(pdu)
+
+        #expect(response.uint64Value(at: 0, order: .abcd) == 0x1234_5678_9ABC_DEF0)
+    }
+
+    @Test("Response uint64Value out of bounds")
+    func responseUInt64OutOfBounds() throws {
+        let pdu: [UInt8] = [
+            0x03,
+            0x04, // Only 2 registers
+            0x12, 0x34,
+            0x56, 0x78,
+        ]
+
+        let response = try parseReadRegistersPDU(pdu)
+
+        #expect(response.uint64Value(at: 0, order: .abcd) == nil)
+    }
+
+    // MARK: - RegisterArray Tests
+
+    @Test("decodeRegistersLE with 2 registers")
+    func decodeRegistersLE2() {
+        // Device Alarm: 2 registers, bit 1 set (Fan failure)
+        let registers: [UInt16] = [0x0002, 0x0000]
+        let result = decodeRegistersLE(registers)
+        #expect(result == 0x0000_0002)
+    }
+
+    @Test("decodeRegistersLE with 4 registers")
+    func decodeRegistersLE4() {
+        // Device Fault: 4 registers, bit 6 set
+        let registers: [UInt16] = [0x0040, 0x0000, 0x0000, 0x0000]
+        let result = decodeRegistersLE(registers)
+        #expect(result == 0x0000_0040)
+    }
+
+    @Test("decodeRegistersLE with single register")
+    func decodeRegistersLE1() {
+        let registers: [UInt16] = [0xABCD]
+        let result = decodeRegistersLE(registers)
+        #expect(result == 0xABCD)
+    }
+
+    @Test("decodeRegistersLE empty returns nil")
+    func decodeRegistersLEEmpty() {
+        let registers: [UInt16] = []
+        #expect(decodeRegistersLE(registers) == nil)
+    }
+
+    @Test("decodeRegistersBE with 2 registers")
+    func decodeRegistersBE2() {
+        // Big Endian: [0x1234, 0x5678] → 0x12345678
+        let registers: [UInt16] = [0x1234, 0x5678]
+        let result = decodeRegistersBE(registers)
+        #expect(result == 0x1234_5678)
+    }
+
+    @Test("Array extension uint64LE")
+    func arrayExtensionLE() {
+        let registers: [UInt16] = [0xDEF0, 0x9ABC, 0x5678, 0x1234]
+        #expect(registers.uint64LE == 0x1234_5678_9ABC_DEF0)
+    }
+
+    @Test("Array extension uint64BE")
+    func arrayExtensionBE() {
+        let registers: [UInt16] = [0x1234, 0x5678, 0x9ABC, 0xDEF0]
+        #expect(registers.uint64BE == 0x1234_5678_9ABC_DEF0)
+    }
+
+    // MARK: - Real-World Alarm/Fault Scenarios
+
+    @Test("Deye Device Alarm - Fan failure (bit 1)")
+    func deyeDeviceAlarmFanFailure() {
+        // Registers: [0x0065, 0x0066] = 2 registers
+        // Bit 1 set = Fan failure
+        let registers: [UInt16] = [0x0002, 0x0000]
+        let bits = decodeRegistersLE(registers)!
+
+        #expect((bits & (1 << 1)) != 0) // Bit 1 is set
+        #expect((bits & (1 << 2)) == 0) // Bit 2 is not set
+    }
+
+    @Test("Deye Device Fault - DC/DC Soft Start (bit 6)")
+    func deyeDeviceFaultDCDC() {
+        // Registers: [0x0067, 0x0068, 0x0069, 0x006A] = 4 registers
+        // Bit 6 set = DC/DC Soft Start failure
+        let registers: [UInt16] = [0x0040, 0x0000, 0x0000, 0x0000]
+        let bits = decodeRegistersLE(registers)!
+
+        #expect((bits & (1 << 6)) != 0) // Bit 6 is set
+    }
+
+    @Test("Deye Device Fault - Temperature high (bit 63)")
+    func deyeDeviceFaultTemperature() {
+        // Bit 63 = Temperature is too high
+        // In LE: bit 63 is in the MSW (register 3), bit 15
+        let registers: [UInt16] = [0x0000, 0x0000, 0x0000, 0x8000]
+        let bits = decodeRegistersLE(registers)!
+
+        #expect((bits & (1 << 63)) != 0) // Bit 63 is set
+    }
 }
